@@ -1,6 +1,0 @@
-<command-line>: warning: "CORE_DEBUG_LEVEL" redefined
-<command-line>: note: this is the location of the previous definition
-ERROR: A fatal error occurred: Failed to connect to ESP32-S3: Download mode successfully detected, but getting no sync reply: The serial TX path seems to be down.
-For troubleshooting steps visit: https://docs.espressif.com/projects/esptool/en/latest/troubleshooting.html
-*** [upload] Error 2
-========================= [FAILED] Took 29.59 seconds =========================
