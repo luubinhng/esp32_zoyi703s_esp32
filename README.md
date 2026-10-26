@@ -52,17 +52,4 @@ The following image identifies the meter's UART connection area and indicates a 
 
 `COM3` is an example Windows serial-port name used to flash firmware or read serial-monitor logs. It is **not** the ESP32's Wi-Fi endpoint. The browser dashboard and PC client access the ESP32 via its AP and WebSocket server.
 
-## Repository layout
 
-```text
-.
-├── README.md
-├── docs/
-│   └── images/
-│       ├── hardware-setup.jpg
-│       ├── dashboard.jpg
-│       └── meter-uart-pinout.jpg
-└── ... (your existing PlatformIO firmware and optional PC client)
-```
-
-The image links are relative paths, so GitHub renders them automatically after all three images are committed to the repository.
