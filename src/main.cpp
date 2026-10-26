@@ -11,7 +11,7 @@
 const char* AP_SSID = "VOM-703S";
 const char* AP_PASSWORD = "zoyi703s123";
 const char* WIFI_SSID = "2G_Viettel";
-const char* WIFI_PASSWORD = "0908309309";
+const char* WIFI_PASSWORD = "......";
 const IPAddress LAN_STATIC_IP(192, 168, 88, 50); //ip lan 192.168.88.50
 const IPAddress LAN_GATEWAY(192, 168, 88, 1);
 const IPAddress LAN_SUBNET(255, 255, 255, 0);
