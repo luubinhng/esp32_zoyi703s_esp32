@@ -11,7 +11,7 @@
 const char* AP_SSID = "VOM-703S";
 const char* AP_PASSWORD = "zoyi703s123";
 const char* WIFI_SSID = "2G_Viettel";
-const char* WIFI_PASSWORD = "your_wifi_pass";
+const char* WIFI_PASSWORD = "0908309309";
 const IPAddress LAN_STATIC_IP(192, 168, 88, 50); //ip lan 192.168.88.50
 const IPAddress LAN_GATEWAY(192, 168, 88, 1);
 const IPAddress LAN_SUBNET(255, 255, 255, 0);
@@ -46,7 +46,7 @@ uint8_t frameBuffer[18];
 size_t frameIndex = 0;
 String serialBuffer;
 bool readingDirty = false;
-constexpr uint32_t METER_BROADCAST_INTERVAL_MS = 40;
+constexpr uint32_t UART_HISTORY_INTERVAL_MS = 200;
 constexpr size_t UART_HISTORY_SIZE = 5;
 String uartHistory[UART_HISTORY_SIZE];
 size_t uartHistoryNext = 0;
@@ -101,6 +101,14 @@ String extendedFrameText(const uint8_t* frame, size_t length) {
     text += hexDigits[frame[index] & 0x0F];
   }
   return text;
+}
+
+void recordExtendedFrameHistory(const uint8_t* frame, size_t length) {
+  static uint32_t lastRecordedAt = 0;
+  const uint32_t now = millis();
+  if (now - lastRecordedAt < UART_HISTORY_INTERVAL_MS) return;
+  lastRecordedAt = now;
+  recordUartLine(extendedFrameText(frame, length));
 }
 
 String trimWhitespace(const String& in) {
@@ -481,7 +489,7 @@ void processSerialBuffer() {
     if (frameIndex > 0 && frameIndex < 18) {
       frameBuffer[frameIndex++] = c;
       if (frameIndex == 18) {
-        recordUartLine(extendedFrameText(frameBuffer, frameIndex));
+        recordExtendedFrameHistory(frameBuffer, frameIndex);
         parseExtendedFrame();
         latestReading.ts = millis();
         readingDirty = true;
@@ -955,7 +963,8 @@ const char HTML_PAGE[] PROGMEM = R"rawl(
     let lastRawSevenValue = '';
     let lastUartSequence = -1;
     let uartRequestInFlight = false;
-    const CHART_SAMPLE_INTERVAL_MS = 100;
+    const CHART_SAMPLE_INTERVAL_MS = 125;
+    const UART_HISTORY_REFRESH_MS = 500;
     const SCOPE_WINDOW_MS = 6000;
 
     function applyTheme(theme) {
@@ -1148,6 +1157,9 @@ const char HTML_PAGE[] PROGMEM = R"rawl(
 
     function refreshUartHistory(sequence) {
       if (uartRequestInFlight || sequence === lastUartSequence) return;
+      const now = performance.now();
+      if (now - lastUartHistoryFetchAt < UART_HISTORY_REFRESH_MS) return;
+      lastUartHistoryFetchAt = now;
       uartRequestInFlight = true;
       fetch('/api/uart')
         .then(response => response.json())
@@ -1190,7 +1202,7 @@ const char HTML_PAGE[] PROGMEM = R"rawl(
       if (meterState === 'DIODE' || meterState === 'CONT' || meterState === 'OHM') {
         valueText.style.color = meterState === 'DIODE' ? '#ffdc6a' : meterState === 'CONT' ? '#ff2020' : '#ffb366';
         unitText.style.color = valueText.style.color;
-        if (meterState === 'CONT' || meterState === 'DIODE') {
+        if (meterState === 'CONT') {
           playBeep();
         }
       } else {
@@ -1464,15 +1476,40 @@ const char HTML_PAGE[] PROGMEM = R"rawl(
     const wsUrl = `ws://${location.hostname}:81/`;
     let socket;
     let lastBeepAt = 0;
+    let lastUartHistoryFetchAt = -UART_HISTORY_REFRESH_MS;
+    let audioUnlocked = false;
+    const beepAudio = new Audio('/beep.wav');
+    beepAudio.preload = 'auto';
+    beepAudio.volume = 0.8;
+
+    function unlockBeep() {
+      if (audioUnlocked) return;
+      const savedVolume = beepAudio.volume;
+      beepAudio.volume = 0;
+      const playPromise = beepAudio.play();
+      if (!playPromise) return;
+      playPromise.then(() => {
+        beepAudio.pause();
+        beepAudio.currentTime = 0;
+        beepAudio.volume = savedVolume;
+        audioUnlocked = true;
+      }).catch(() => {
+        beepAudio.volume = savedVolume;
+      });
+    }
+
+    ['pointerdown', 'touchstart', 'keydown'].forEach((eventName) => {
+      document.addEventListener(eventName, unlockBeep, { once: true });
+    });
 
     function playBeep() {
-      const now = Date.now();
-      if (now - lastBeepAt < 120) return;
+      const now = performance.now();
+      if (now - lastBeepAt < 90) return;
       lastBeepAt = now;
       try {
-        const audio = new Audio('/beep.wav');
-        audio.volume = 0.7;
-        audio.play().catch(() => {});
+        beepAudio.pause();
+        beepAudio.currentTime = 0;
+        beepAudio.play().catch(() => {});
       } catch (error) {
         // ignore audio failures in unsupported browsers
       }
@@ -1642,9 +1679,7 @@ void loop() {
   webSocket.loop();
   server.handleClient();
 
-  static uint32_t lastBroadcastAt = 0;
-  if (readingDirty && millis() - lastBroadcastAt >= METER_BROADCAST_INTERVAL_MS) {
-    lastBroadcastAt = millis();
+  if (readingDirty) {
     readingDirty = false;
     broadcastMeter();
   }
